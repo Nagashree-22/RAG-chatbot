@@ -1,13 +1,5 @@
 
-from transformers import pipeline
-
-
-# Load emotion detection model
-emotion_model = pipeline(
-    "text-classification",
-    model="j-hartmann/emotion-english-distilroberta-base",
-    top_k=1
-)
+import re
 
 
 # Suggestions
@@ -306,15 +298,43 @@ def detect_emotion(text):
         }
 
 
-    # ---------------- HUGGING FACE MODEL ---------------- #
-
-
-    result = emotion_model(text)
-
-
-    emotion = result[0][0]["label"]
-    confidence = result[0][0]["score"]
-
+    # ---------------- LOCAL EMOTION CLASSIFICATION ---------------- #
+    emotion_words = {
+        "joy": {
+            "happy", "happiness", "joy", "excited", "wonderful", "great",
+            "proud", "delighted", "glad", "cheerful", "grateful",
+        },
+        "sadness": {
+            "sad", "unhappy", "depressed", "miserable", "heartbroken",
+            "grief", "crying", "hopeless", "upset",
+        },
+        "anger": {
+            "angry", "furious", "mad", "annoyed", "irritated", "hate",
+            "frustrated", "rage",
+        },
+        "fear": {
+            "afraid", "scared", "fear", "terrified", "anxious", "nervous",
+            "worried", "panic",
+        },
+        "love": {
+            "love", "adore", "cherish", "affection", "caring",
+        },
+        "surprise": {
+            "surprised", "unexpected", "shocked", "amazed", "astonished",
+        },
+    }
+    words = set(re.findall(r"[a-z']+", text))
+    scores = {
+        emotion: sum(1 for word in keywords if word in words)
+        for emotion, keywords in emotion_words.items()
+    }
+    emotion = max(scores, key=scores.get)
+    matches = scores[emotion]
+    if not matches:
+        emotion = "neutral"
+        confidence = 0.5
+    else:
+        confidence = min(0.95, 0.65 + 0.1 * (matches - 1))
 
     return {
         "emotion": emotion,
@@ -324,4 +344,3 @@ def detect_emotion(text):
             ["Take care of yourself."]
         )
     }
-

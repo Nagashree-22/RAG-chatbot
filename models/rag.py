@@ -1,52 +1,16 @@
+from pathlib import Path
 
-from langchain_community.document_loaders import TextLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-
-
-from langchain_community.vectorstores import Chroma
-from langchain_community.embeddings import HuggingFaceEmbeddings
+import chromadb
 
 
-# Load embedding model
-embedding = HuggingFaceEmbeddings(
-    model_name="sentence-transformers/all-MiniLM-L6-v2"
-)
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+VECTOR_DB_PATH = PROJECT_ROOT / "vector_db"
+
+client = chromadb.PersistentClient(path=str(VECTOR_DB_PATH))
+collection = client.get_collection("langchain")
 
 
-# Load knowledge base
-loader = TextLoader(
-    "data/knowledge.txt",
-    encoding="utf-8"
-)
-
-
-documents = loader.load()
-
-
-# Split documents into chunks
-splitter = RecursiveCharacterTextSplitter(
-    chunk_size=500,
-    chunk_overlap=100
-)
-
-
-docs = splitter.split_documents(documents)
-
-
-# Create vector database
-db = Chroma.from_documents(
-    documents=docs,
-    embedding=embedding,
-    persist_directory="vector_db"
-)
-
-
-# Save database
-db.persist()
-
-
-# Create retriever
-retriever = db.as_retriever(
-    search_kwargs={"k": 3}
-)
-
+def retrieve_documents(query: str, limit: int = 3) -> list[str]:
+    results = collection.query(query_texts=[query], n_results=limit)
+    documents = results.get("documents", [[]])[0]
+    return list(dict.fromkeys(document for document in documents if document))

@@ -96,7 +96,7 @@ function getRobotMood(emotion) {
 }
 
 async function request(path, options) {
-  const response = await fetch(`${API}${path}`, {
+  const response = await fetchApi(`${API}${path}`, {
     headers: { "Content-Type": "application/json" },
     ...options,
   });
@@ -107,8 +107,21 @@ async function request(path, options) {
   return result;
 }
 
+async function fetchApi(path, options) {
+  try {
+    return await fetch(path, options);
+  } catch (cause) {
+    if (cause instanceof TypeError) {
+      throw new Error(
+        "MindCare could not reach its API. Start the backend with `python app.py` and try again.",
+      );
+    }
+    throw cause;
+  }
+}
+
 async function streamChat(message, onToken) {
-  const response = await fetch(`${API}/chat`, {
+  const response = await fetchApi(`${API}/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ message }),

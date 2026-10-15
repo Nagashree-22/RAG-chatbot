@@ -53,6 +53,7 @@ Emotion = Literal[
     "stress",
     "loneliness",
 ]
+ChatRole = Literal["user", "assistant"]
 
 ROBOT_IMAGES = {
     "joy": "robot_happy.png",
@@ -76,8 +77,14 @@ ROBOT_IMAGES = {
 }
 
 
+class ChatTurn(BaseModel):
+    role: ChatRole
+    content: str = Field(min_length=1, max_length=4000)
+
+
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
+    conversation: list[ChatTurn] = Field(default_factory=list, max_length=8)
 
 
 @lru_cache(maxsize=1)
@@ -94,6 +101,44 @@ def _emotion_payload(message: str) -> dict[str, object]:
         "suggestions": result["suggestions"],
         "robot_image": f"/assets/{ROBOT_IMAGES[emotion]}",
     }
+
+
+def _chat_messages(
+    message: str,
+    context: str,
+    conversation: list[ChatTurn],
+) -> list[dict[str, str]]:
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are MindCare AI, a warm and emotionally attentive wellbeing companion. "
+                "Talk with the user, not at them: respond to the specific things they shared, "
+                "remember the recent conversation, and sound natural rather than like a list of tips. "
+                "When they are sad, struggling, lonely, overwhelmed, or in pain, acknowledge what "
+                "they may be feeling and offer comfort before advice. Do not dismiss their feelings "
+                "or rush them to feel better. Help them keep moving forward at their own pace by "
+                "offering one small, realistic next step when it feels useful, and gently notice "
+                "their effort or progress without giving empty praise. Ask at most one gentle, "
+                "open question when it helps continue the conversation; do not end every reply with "
+                "a question. Avoid repeating advice already given. Keep replies personal, concise, "
+                "and supportive, usually 2-4 sentences. Use knowledge context only when relevant. "
+                "Never diagnose, pretend to be a doctor, or invent medical facts."
+            ),
+        },
+        *[
+            {"role": turn.role, "content": turn.content}
+            for turn in conversation
+        ],
+        {
+            "role": "user",
+            "content": (
+                f"Relevant context:\n{context or 'None'}\n\n"
+                f"User message: {message}"
+            ),
+        },
+    ]
+    return messages
 
 
 @app.on_event("startup")
@@ -164,29 +209,11 @@ def chat(request: ChatRequest) -> StreamingResponse:
                 max_completion_tokens=220,
                 temperature=0.8,
                 stream=True,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "You are MindCare AI, but speak like a genuinely caring human friend who is calm, warm, and emotionally aware. "
-                            "Do not sound robotic, clinical, or distant. Talk directly to the person as if you are comforting a friend: gentle, supportive, and natural. "
-                            "If the person sounds sad, overwhelmed, lonely, exhausted, or in pain, respond with sincere empathy first, acknowledge what they are feeling, and comfort them without judgment. "
-                            "If they mention physical pain, discomfort, or health issues, respond with reassurance, calm guidance, and practical, non-diagnostic support. "
-                            "Use emotional understanding before advice. Say things like 'That sounds really tough', 'I’m sorry you’re going through this', or 'You don’t have to carry this alone.' "
-                            "Keep responses conversational, warm, and personal, usually 2-5 sentences, and avoid sounding like a bot or a textbook. "
-                            "Ask one simple follow-up question only if it helps them feel heard or supported. "
-                            "Never diagnose, pretend to be a doctor, or invent medical facts. Be truthful about limits, but remain kind and comforting."
-                        ),
-                    },
-                    {
-                        "role": "user",
-                        "content": (
-                            f"Relevant context:\n{context or 'None'}\n\n"
-                            f"User message: {message}\n\n"
-                            "Please respond in a direct, human, comforting way, like someone who understands emotion and truly cares."
-                        ),
-                    },
-                ],
+                messages=_chat_messages(
+                    message,
+                    context,
+                    request.conversation,
+                ),
             ) as response:
                 for chunk in response:
                     content = chunk.choices[0].delta.content

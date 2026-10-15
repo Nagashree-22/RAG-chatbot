@@ -120,11 +120,11 @@ async function fetchApi(path, options) {
   }
 }
 
-async function streamChat(message, onToken) {
+async function streamChat(message, conversation, onToken) {
   const response = await fetchApi(`${API}/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message }),
+    body: JSON.stringify({ message, conversation: conversation.slice(-8) }),
   });
   if (!response.ok) {
     const result = await response.json();
@@ -232,7 +232,7 @@ function App() {
         console.error("Could not show the immediate emotion preview.", cause);
       }
 
-      const result = await streamChat(text, (token) => {
+      const result = await streamChat(text, messages, (token) => {
         setMessages((current) => {
           const last = current[current.length - 1];
           if (last?.role === "assistant") {

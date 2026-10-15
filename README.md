@@ -4,6 +4,9 @@ MindCare AI uses a React frontend with a Python API. The API retrieves relevant
 passages from the existing Chroma index and calls Groq for a concise response.
 Emotion is classified locally, so the matching robot image can appear before
 the AI response arrives.
+Chat requests include up to the eight most recent turns from the current
+conversation so replies can follow up naturally, acknowledge progress, and
+suggest a manageable next step without repeating earlier advice.
 
 ## Run locally on Windows
 
